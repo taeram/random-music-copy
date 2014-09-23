@@ -8,16 +8,8 @@ import random
 import shutil
 
 
-EXCLUDE_DIRS = ['OST']
-
 def get_free_disk_space(path):
     return int(subprocess.check_output('df ' + path, shell=True).split('\n')[1].split()[3])
-
-def must_be_excluded(dirpath, exclude_list):
-    for item in exclude_list:
-        if item in dirpath:
-            return True
-    return False
 
 def print_error(message):
     print 'ERROR: ' + message
@@ -83,11 +75,10 @@ found_files = []
 
 print 'Scanning directory...'
 
-for dirname, dirnames, filenames in os.walk(FROM_DIR):
-    if not must_be_excluded(dirname, EXCLUDE_DIRS):
-        for filename in filenames:
-            if filename.endswith('mp3'):
-                found_files.append(os.path.join(dirname, filename))
+for dirname, dirnames, filenames in os.walk(FROM_DIR, followlinks=True):
+    for filename in filenames:
+        if filename.endswith('mp3'):
+            found_files.append(os.path.join(dirname, filename))
 
 print 'Copying files...'
 
@@ -115,6 +106,5 @@ while True:
     if len(copied_indexes) == len(found_files):
         break
         
-
 print 'Copied files: ', len(copied_indexes)
 print 'With total size: ', copied_size/(1024*1024), "MB"
