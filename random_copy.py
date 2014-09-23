@@ -60,7 +60,7 @@ else:
 if opts.size:
     FILES_SIZE = opts.size
 else:
-    print_error('Copy size mus be set')
+    FILES_SIZE = get_free_disk_space(TO_DIR) / 1024
 
 if opts.number:
     FILES_NUMBER = opts.number
@@ -96,6 +96,7 @@ while True:
             if FILES_NUMBER and FILES_NUMBER <= len(copied_indexes):
                 break
 
+            print "    - %s" % found_files[index]
             shutil.copy(found_files[index], TO_DIR)
             copied_indexes.append(index)
             copied_size += fileSize
