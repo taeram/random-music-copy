@@ -1,111 +1,107 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf8 -*-
 
+import ctypes
+from argparse import ArgumentParser
 import os
-import optparse
-import subprocess
-import random
-import shutil
-
+import platform
+from shutil import copy
+from random import shuffle
+from sys import exit
 
 def get_free_disk_space(path):
-    return int(subprocess.check_output('df ' + path, shell=True).split('\n')[1].split()[3])
+    """
+        Return free space in bytes for a path
 
-def print_error(message):
-    print 'ERROR: ' + message
+        Retrieved on 2014-10-09 from https://stackoverflow.com/a/2372171/27810
+        Modified for use in random-copy.py by Jesse Patching
+    """
+    if platform.system() == 'Windows':
+        free_bytes = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(path), None, None, ctypes.pointer(free_bytes))
+        free_space = free_bytes.value
+    else:
+        st = os.statvfs(path)
+        free_space = st.f_bavail * st.f_frsize
+
+    return free_space
+
+def error(message):
+    print '\033[91m' + message + '\033[0m'
     exit(1)
 
-def process_options():
-    usage = '''%prog -f SOURCE_DIR -t DEST_DIR -s MBYTES [-n NFILES].'''
+def main():
 
-    parser = optparse.OptionParser(usage=usage)
-    parser.add_option('-f', '--from', dest='from_dir',
-            action='store', type='str', default='',
-            help=('Source directory.'))
-    parser.add_option('-t', '--to', dest='to_dir',
-            action='store', type='str', default='',
-            help=('Destination directory'))
-    parser.add_option('-s', '--size', dest='size',
-            action='store', type='int', default=0,
-            help=('Entire size of copied files'))
-    parser.add_option('-n', '--number', dest='number',
-            action='store', type='int', default=0,
-            help=('Number of copied files'))
+    # Setup the parser options
+    parser = ArgumentParser(description="Copy a bunch of random MP3's from your library")
+    parser.add_argument('source_dir', metavar='source_dir', help='The location of your MP3 library')
+    parser.add_argument('dest_dir', metavar='dest_dir', help="Where to copy the random MP3's to")
+    parser.add_argument('-s', '--size', dest='max_size', action='store', type=int, default=None, help='Total size of copied files, in megabytes')
+    parser.add_argument('-n', '--number-of-files', dest='file_count', action='store', type=int, default=None, help='Maximum number of files to copy')
+    args = parser.parse_args()
 
-    opts, args = parser.parse_args()
-    if not args:
-        args = ['.']
-    return opts, args
+    # Does the source directory exist?
+    if not os.path.isdir(args.source_dir):
+        error('No such directory: ' + args.source_dir)
 
-# Parsing options
-opts, args = process_options()
+    # Does the destination directory exist?
+    if not os.path.isdir(args.dest_dir):
+        error('No such directory: ' + args.dest_dir)
 
-# Checking options
-if opts.from_dir:
-    if os.path.isdir(opts.from_dir):
-        FROM_DIR = opts.from_dir
+    # If no size limit specified, fill the destination
+    if args.max_size is None:
+        args.max_size = get_free_disk_space(args.dest_dir)
     else:
-        print_error('No such directory: ' + opts.from_dir)
-else:
-    print_error('Source directory must be set')
+        # Convert megabytes to bytes
+        args.max_size = args.max_size * 1024 * 1024
 
-if opts.to_dir:
-    if os.path.isdir(opts.to_dir):
-        TO_DIR = opts.to_dir
-    else:
-        print_error('No such directory: ' + opts.to_dir)
-else:
-    print_error('Destination directory must be set')
+        # Ensure there's enough free space
+        if get_free_disk_space(args.dest_dir) < args.max_size:
+            error('Not enough free space in destination directory')
 
-if opts.size:
-    FILES_SIZE = opts.size
-else:
-    FILES_SIZE = get_free_disk_space(TO_DIR) / 1024
+    # Get a list of files to copy
+    print 'Scanning %s...' % args.source_dir
+    found_files = []
+    for dirname, dirnames, filenames in os.walk(args.source_dir, followlinks=True):
+        for filename in filenames:
+            if filename.endswith('mp3'):
+                filepath = os.path.join(dirname, filename)
+                found_files.append(filepath)
 
-if opts.number:
-    FILES_NUMBER = opts.number
-else:
-    FILES_NUMBER = 0
+    if not found_files:
+        error('No files found, exiting...')
 
-# Checking free space on destination
-if get_free_disk_space(TO_DIR) < FILES_SIZE * 1024:
-    print_error('Not enough free space in destination directory')
+    # Randomize the list of files
+    shuffle(found_files)
 
-found_files = []
+    # How many files to copy?
+    if args.file_count is None:
+        # Copy all the files!
+        args.file_count = len(found_files)
 
-print 'Scanning directory...'
+    copied_count = 0
+    copied_size = 0
+    print 'Copying files...'
+    for file in found_files:
+        # Update the size of the copied files
+        file_size = os.stat(file).st_size
+        if (copied_size + file_size) > args.max_size:
+            print "Destination full!"
+            break
+        copied_size += file_size
 
-for dirname, dirnames, filenames in os.walk(FROM_DIR, followlinks=True):
-    for filename in filenames:
-        if filename.endswith('mp3'):
-            found_files.append(os.path.join(dirname, filename))
+        # Test the file count limit
+        if (copied_count + 1) > args.file_count:
+            print "File limit reached!"
+            break
+        copied_count += 1
 
-print 'Copying files...'
+        # Copy the file
+        print "    - %s" % file
+        copy(file, args.dest_dir)
 
-if not found_files:
-    print 'Nothing to copy'
+    print 'Done! Copied %s files totalling % MB ' % (copied_count, (copied_size/1024*1024))
     exit(0)
 
-copied_indexes = []
-copied_size = 0
-while True:
-    index = random.randint(0, len(found_files) - 1)
-    if index not in copied_indexes:
-        fileSize = os.stat(found_files[index]).st_size
-        if fileSize + copied_size < FILES_SIZE * 1024 * 1024:
-            if FILES_NUMBER and FILES_NUMBER <= len(copied_indexes):
-                break
-
-            print "    - %s" % found_files[index]
-            shutil.copy(found_files[index], TO_DIR)
-            copied_indexes.append(index)
-            copied_size += fileSize
-
-        else:
-            break
-
-    if len(copied_indexes) == len(found_files):
-        break
-        
-print 'Copied files: ', len(copied_indexes)
-print 'With total size: ', copied_size/(1024*1024), "MB"
+if __name__ == '__main__':
+    main()
