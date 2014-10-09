@@ -14,7 +14,7 @@ def get_free_disk_space(path):
         Return free space in bytes for a path
 
         Retrieved on 2014-10-09 from https://stackoverflow.com/a/2372171/27810
-        Modified for use in random-copy.py by Jesse Patching
+        Modified for use in random-copy-music by Jesse Patching
     """
     if platform.system() == 'Windows':
         free_bytes = ctypes.c_ulonglong(0)
@@ -25,6 +25,20 @@ def get_free_disk_space(path):
         free_space = st.f_bavail * st.f_frsize
 
     return free_space
+
+
+def touch(fname, times=None):
+    """
+        Touch a file, setting it's modification time
+
+        Retrieved on 2014-10-09 from https://stackoverflow.com/a/1160227/27810
+        Modified for use in random-copy-music by Jesse Patching
+    """
+    fhandle = open(fname, 'a')
+    try:
+        os.utime(fname, times)
+    finally:
+        fhandle.close()
 
 def error(message):
     print '\033[91m' + message + '\033[0m'
@@ -38,6 +52,8 @@ def main():
     parser.add_argument('dest_dir', metavar='dest_dir', help="Where to copy the random MP3's to")
     parser.add_argument('-s', '--size', dest='max_size', action='store', type=int, default=None, help='Total size of copied files, in megabytes')
     parser.add_argument('-n', '--number-of-files', dest='file_count', action='store', type=int, default=None, help='Maximum number of files to copy')
+    parser.add_argument('-f', '--use-folders', dest='use_folders', action='store_true', help="Put the files in folders to support stereos with file limits")
+    parser.add_argument('-l', '--folder-file-limit', dest='folder_file_count', action='store', type=int, default=20, help="The number of files to store in each folder")
     args = parser.parse_args()
 
     # Does the source directory exist?
@@ -78,6 +94,7 @@ def main():
         # Copy all the files!
         args.file_count = len(found_files)
 
+    folder_count = 0
     copied_count = 0
     copied_size = 0
     print 'Copying files...'
@@ -87,20 +104,40 @@ def main():
         if (copied_size + file_size) > args.max_size:
             print "Destination full!"
             break
-        copied_size += file_size
 
         # Test the file count limit
         if (copied_count + 1) > args.file_count:
             print "File limit reached!"
             break
-        copied_count += 1
 
-        # Copy the file, ensuring there aren't any duplicates
         print "    - %s" % file
-        file_dest = "%s%04d - %s" % (args.dest_dir, copied_count, os.path.basename(file))
+
+        # What folder do we store this file in
+        file_dir = args.dest_dir
+        if args.use_folders:
+            if copied_count / args.folder_file_count > folder_count:
+                folder_count += 1
+
+            file_dir = "%s/%04d" % (file_dir, folder_count)
+
+            if not os.path.exists(file_dir):
+                os.makedirs(file_dir)
+
+        # Give the file a unique prefix, ensuring we won't overwrite any existing files
+        file_name = "%04d - %s" % (copied_count, os.path.basename(file))
+
+        file_dest = "%s/%s" % (file_dir, file_name)
         copyfile(file, file_dest)
 
-    print 'Done! Copied %s files totalling %s MB ' % (copied_count, (copied_size/1024*1024))
+        # Since some stereos look at the modification time to determine file sorting,
+        # touch the file after it's been copied to set it's modification time to now
+        touch(file_dest)
+
+        # Update the counters
+        copied_size += file_size
+        copied_count += 1
+
+    print 'Done! Copied %s files totalling %s MB ' % (copied_count, (copied_size/1024/1024))
     exit(0)
 
 if __name__ == '__main__':
