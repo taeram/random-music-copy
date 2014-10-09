@@ -5,7 +5,7 @@ import ctypes
 from argparse import ArgumentParser
 import os
 import platform
-from shutil import copy
+from shutil import copyfile
 from random import shuffle
 from sys import exit
 
@@ -74,7 +74,6 @@ def main():
     # Randomize the list of files
     shuffle(found_files)
 
-    # How many files to copy?
     if args.file_count is None:
         # Copy all the files!
         args.file_count = len(found_files)
@@ -96,11 +95,12 @@ def main():
             break
         copied_count += 1
 
-        # Copy the file
+        # Copy the file, ensuring there aren't any duplicates
         print "    - %s" % file
-        copy(file, args.dest_dir)
+        file_dest = "%s%04d - %s" % (args.dest_dir, copied_count, os.path.basename(file))
+        copyfile(file, file_dest)
 
-    print 'Done! Copied %s files totalling % MB ' % (copied_count, (copied_size/1024*1024))
+    print 'Done! Copied %s files totalling %s MB ' % (copied_count, (copied_size/1024*1024))
     exit(0)
 
 if __name__ == '__main__':
