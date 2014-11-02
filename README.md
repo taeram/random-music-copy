@@ -13,3 +13,5 @@ Here are the options:
 * Put the files in numbered folders (defaults to 20 files per folder)
  * This is to get around an issue with stereos that support MP3's on a USB stick.
  * Some stereos will only "see" a certain number of files in a folder, and skip the rest.
+* Exclude directories and files using patterns
+* Do a dry run to see what will be copied
