@@ -54,6 +54,8 @@ def main():
     parser.add_argument('-n', '--number-of-files', dest='file_count', action='store', type=int, default=None, help='Maximum number of files to copy')
     parser.add_argument('-f', '--use-folders', dest='use_folders', action='store_true', help="Put the files in folders to support stereos with file limits")
     parser.add_argument('-l', '--folder-file-limit', dest='folder_file_count', action='store', type=int, default=20, help="The number of files to store in each folder")
+    parser.add_argument('-e', '--exclude', dest='excludes', action='store', nargs="*", help="A list of files/dirs to exclude")
+    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_true', help="Just perform a dry run")
     args = parser.parse_args()
 
     # Does the source directory exist?
@@ -79,10 +81,23 @@ def main():
     print 'Scanning %s...' % args.source_dir
     found_files = []
     for dirname, dirnames, filenames in os.walk(args.source_dir, followlinks=True):
-        for filename in filenames:
-            if filename.endswith('mp3'):
-                filepath = os.path.join(dirname, filename)
-                found_files.append(filepath)
+        skip_dir = False
+        for exclude in args.excludes:
+            if exclude.lower() in dirname.lower():
+                skip_dir = True
+                break
+
+        if not skip_dir:
+            for filename in filenames:
+                skip_file = False
+                for exclude in args.excludes:
+                    if exclude.lower() in filename.lower():
+                        skip_file = True
+                        break
+
+                if not skip_file and filename.endswith('mp3'):
+                    filepath = os.path.join(dirname, filename)
+                    found_files.append(filepath)
 
     if not found_files:
         error('No files found, exiting...')
@@ -120,18 +135,19 @@ def main():
 
             file_dir = "%s/%04d" % (file_dir, folder_count)
 
-            if not os.path.exists(file_dir):
+            if not args.dry_run and not os.path.exists(file_dir):
                 os.makedirs(file_dir)
 
         # Give the file a unique prefix, ensuring we won't overwrite any existing files
         file_name = "%04d - %s" % (copied_count, os.path.basename(file))
 
         file_dest = "%s/%s" % (file_dir, file_name)
-        copyfile(file, file_dest)
+        if not args.dry_run:
+            copyfile(file, file_dest)
 
-        # Since some stereos look at the modification time to determine file sorting,
-        # touch the file after it's been copied to set it's modification time to now
-        touch(file_dest)
+            # Since some stereos look at the modification time to determine file sorting,
+            # touch the file after it's been copied to set it's modification time to now
+            touch(file_dest)
 
         # Update the counters
         copied_size += file_size
