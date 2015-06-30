@@ -82,18 +82,20 @@ def main():
     found_files = []
     for dirname, dirnames, filenames in os.walk(args.source_dir, followlinks=True):
         skip_dir = False
-        for exclude in args.excludes:
-            if exclude.lower() in dirname.lower():
-                skip_dir = True
-                break
+        if args.excludes:
+            for exclude in args.excludes:
+                if exclude.lower() in dirname.lower():
+                    skip_dir = True
+                    break
 
         if not skip_dir:
             for filename in filenames:
                 skip_file = False
-                for exclude in args.excludes:
-                    if exclude.lower() in filename.lower():
-                        skip_file = True
-                        break
+                if args.excludes:
+                    for exclude in args.excludes:
+                        if exclude.lower() in filename.lower():
+                            skip_file = True
+                            break
 
                 if not skip_file and filename.endswith('mp3'):
                     filepath = os.path.join(dirname, filename)
