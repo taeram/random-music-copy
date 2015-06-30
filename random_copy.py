@@ -81,6 +81,7 @@ def main():
     print 'Scanning %s...' % args.source_dir
     found_files = []
     for dirname, dirnames, filenames in os.walk(args.source_dir, followlinks=True):
+        print "\t%s" % dirname
         skip_dir = False
         if args.excludes:
             for exclude in args.excludes:
@@ -140,8 +141,9 @@ def main():
             if not args.dry_run and not os.path.exists(file_dir):
                 os.makedirs(file_dir)
 
-        # Give the file a unique prefix, ensuring we won't overwrite any existing files
-        file_name = "%04d - %s" % (copied_count, os.path.basename(file))
+        # Give the file a unique postfix, ensuring we won't overwrite any existing files
+        file_name, file_extension = os.path.splitext(os.path.basename(file))
+        file_name = "%s - %04d%s" % (file_name, copied_count, file_extension)
 
         file_dest = "%s/%s" % (file_dir, file_name)
         if not args.dry_run:
